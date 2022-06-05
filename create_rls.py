@@ -11,16 +11,10 @@ TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '
 RLS_HEADER = ['UserName', 'account_id']
 CUDOS_FULL_ACESS_USERS = os_environ['CUDOS_FULL_ACCESS'].split(",") if 'CUDOS_FULL_ACCESS' in os_environ else ['a']
 ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
+
+
 org_client = boto3.client('organizations')
 s3_client = boto3.client('s3')
-
-#def remove_inactive_accoutns(account_list):
-#    for account in account_list:
-#        if account['Status'] != 'ACTIVE':
-#            print("Removing inactive account: {}".format(acc['Id']))
-#            account_list[account]
-#        return account_list
-
 
 def get_tags(account_list):
     for index, account  in enumerate(account_list):
@@ -56,8 +50,8 @@ def add_cudos_user_to_qs_rls(account, users, qs_rls,separator=":"):
         else:
            qs_rls.update({user: []})
            add_cudos_user_to_qs_rls(account,user, qs_rls)
-
     return qs_rls
+
 
 def get_ou_children(ou):
     NextToken = True
@@ -126,61 +120,27 @@ def upload_to_s3(file, s3_file):
         print("Credentials not available")
         return None
 
-def crawl_org(org_client):
-#    for root in org_client.list_roots():
-#        for ou in
-#
-    pass
 
-def craw_ou(ou):
-#    org_client.list_children(ou, 'ORGANIZATIONAL_UNIT')
-    pass
-
-
-
-
-def main():
-    cudos_users = {}
-    cudos_users_list = []
-    account_list = get_tags(remove_inactive_accoutns(org_client.list_accounts()['Accounts']))
-    cudos_users_list.extend(get_cudos_users(account_list))
-    for entry in cudos_users_list:
-        account = entry[0]
-        users  = entry[1]
-        add_cudos_user(account, users, cudos_users)
-    for full_access_user in CUDOS_FULL_ACESS_USERS:
-        add_full_access_users(full_access_user, cudos_users)
-    cudos_users = dict_list_to_csv(cudos_users)
-    with open(TMP_RLS_FILE,'w',newline='') as cudos_rls_csv:
-        wrt = csv.DictWriter(cudos_rls_csv,fieldnames=RLS_HEADER)
-        wrt.writeheader()
-        for k,v in cudos_users.items():
-            wrt.writerow({RLS_HEADER[0]: k, RLS_HEADER[1]: v})
-    upload_to_s3(TMP_RLS_FILE, TMP_RLS_FILE)
-
-def test(separator=":"):
+def main(separator=":"):
     qs_rls = {}
     #mou =  'ou-hg33-utwcpxrb'
     root_ou = ROOT_OU
     qs_rls = process_ou(root_ou, qs_rls, root_ou)
     qs_rls = process_root_ou(root_ou,qs_rls)
-    print(f"Final result of qs_rls: {qs_rls}")
+    print(f"DEBUG: Final result of qs_rls: {qs_rls}")
     write_csv(qs_rls)
 
 
-
 def process_account(account_id, qs_rls, ou):
-    #account_id = account['Id']
     print(f"DEBUG: proessing account level tags, processing account_id: {account_id}")
     tags = org_client.list_tags_for_resource(ResourceId=account_id)['Tags']
     for tag in tags:
         if tag['Key'] == 'cudos_users':
             cudos_users_tag_value = tag['Value']
-            for account in get_ou_accounts(ou):
-                account_id = account['Id']
-                print(f"DEBUG: processing child account: {account_id} for ou: {ou}")
-                add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
+            print(f"DEBUG: processing child account: {account_id} for ou: {ou}")
+            add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
     return qs_rls
+
 
 def process_root_ou(root_ou, qs_rls):
     tags = org_client.list_tags_for_resource(ResourceId=root_ou)['Tags']
@@ -216,11 +176,12 @@ def process_ou(ou, qs_rls, root_ou):
             process_ou(ou, qs_rls,root_ou)
 
     ou_accoutns = get_ou_accounts(ou)
-    print(f"DEBUG: Preparing process for noniherit accounts of ou: {ou}, accounts: {ou_accoutns}")
     for account in get_ou_accounts(ou):
         account_id = account['Id']
+        print(f"DEBUG: Preparing process for noniherit accounts of ou: {ou}, account: {account_id}")
         process_account(account_id, qs_rls, ou)
     return qs_rls
+
 
 def write_csv(qs_rls):
     print(qs_rls)
@@ -233,13 +194,8 @@ def write_csv(qs_rls):
     upload_to_s3(TMP_RLS_FILE, TMP_RLS_FILE)
 
 
-    #for acc in get_ou_accounts(mou):
-    #    print(acc['Id'])
-
-
 def lambda_handler(event, context):
     main()
 
 if __name__ == '__main__':
-#    main()
-    test()
+    main()
