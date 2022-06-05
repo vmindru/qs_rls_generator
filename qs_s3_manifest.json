@@ -1,0 +1,16 @@
+"Replace s3://BUCKET with your CUDOS bucket"
+{
+    "fileLocations": [
+        {
+            "URIs": [
+                "s3://your_cudos_bucket/cudos_rls.csv",
+            ]
+        }
+    ],
+    "globalUploadSettings": {
+        "format": "CSV",
+        "delimiter": ",",
+        "textqualifier": "\"",
+        "containsHeader": "true"
+    }
+}
