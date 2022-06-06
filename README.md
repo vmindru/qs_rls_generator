@@ -34,7 +34,7 @@ ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing RO
 
 ## Output 
 
-Output is writen to TMP_RLS_FILE location and uploaded to BUCKET_NAME.
+Output is writen to `TMP_RLS_FILE` location and uploaded to `BUCKET_NAME`.
 
 
 ## Example Output 
