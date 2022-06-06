@@ -2,7 +2,9 @@
 
 ## About QS RLS generator 
 Generate RLS csv file for QuickSight based on AWS Organizational Units.
+
 [About QuickSight RLS](https://docs.aws.amazon.com/quicksight/latest/user/restrict-access-to-a-data-set-using-row-level-security.html)
+
 [About AWS Organizational Unit ](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html)
 
 

@@ -6,7 +6,8 @@ from botocore.exceptions import NoCredentialsError
 from sys import exit
 
 OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ else 'cudos_users'
-BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit('Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME')
+BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
+    "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
 RLS_HEADER = ['UserName', 'account_id']
 ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
