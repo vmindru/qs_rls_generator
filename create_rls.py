@@ -71,7 +71,7 @@ def get_ou_children(ou):
     return ous_list
 
 
-def get_ou_accounts(ou, accounts_list=None):
+def get_ou_accounts(ou, accounts_list=None, process_ou_children=True):
     NextToken = True
     if accounts_list is None:
         accounts_list = []
@@ -88,8 +88,9 @@ def get_ou_accounts(ou, accounts_list=None):
         for account in accounts:
             if  account['Status'] == 'ACTIVE':
                 accounts_list.append(account)
-    for ou in get_ou_children(ou):
-        get_ou_accounts(ou, accounts_list)
+    if process_ou_children:
+        for ou in get_ou_children(ou):
+            get_ou_accounts(ou, accounts_list)
     return accounts_list
 
 
@@ -123,7 +124,6 @@ def upload_to_s3(file, s3_file):
 
 def main(separator=":"):
     qs_rls = {}
-    #mou =  'ou-hg33-utwcpxrb'
     root_ou = ROOT_OU
     qs_rls = process_ou(root_ou, qs_rls, root_ou)
     qs_rls = process_root_ou(root_ou,qs_rls)
@@ -161,24 +161,25 @@ def process_ou(ou, qs_rls, root_ou):
     for tag in tags:
         if tag['Key'] == 'cudos_users':
             cudos_users_tag_value = tag['Value']
-            if ou != root_ou:
-                for account in get_ou_accounts(ou):
-                   account_id = account['Id']
-                   print(f"DEBUG: processing inherit tag: {cudos_users_tag_value} for ou: {ou} account_id: {account_id}")
-                   add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
-            else:
-                pass
+            """ Do not process all children if this is root ou, this is done bellow in separate cycle. """
+            process_ou_children = bool( ou != root_ou)
+            for account in get_ou_accounts(ou, process_ou_children=process_ou_children):
+                account_id = account['Id']
+                print(f"DEBUG: processing inherit tag: {cudos_users_tag_value} for ou: {ou} account_id: {account_id}")
+                add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
 
     children_ou = get_ou_children(ou)
     if len(children_ou) > 0:
-        for ou in children_ou:
-            print(f"DEBUG: processing child ou: {ou}")
-            process_ou(ou, qs_rls,root_ou)
+        for child_ou in children_ou:
+            print(f"DEBUG: processing child ou: {child_ou}")
+            process_ou(child_ou, qs_rls,root_ou)
 
-    ou_accoutns = get_ou_accounts(ou)
-    for account in get_ou_accounts(ou):
+    ou_accounts = get_ou_accounts(ou, process_ou_children=False)  # Do not process children, only accounts at OU level.
+    ou_accounts_ids = [ ou_account['Id'] for ou_account in ou_accounts]
+    print(f"DEBUG: Getting accounts in  OU: {ou} ########################### ou_accounts:{ou_accounts_ids}")
+    for account in ou_accounts:
         account_id = account['Id']
-        print(f"DEBUG: Preparing process for noniherit accounts of ou: {ou}, account: {account_id}")
+        print(f"DEBUG: Processing OU level accounts for ou: {ou}, account: {account_id}")
         process_account(account_id, qs_rls, ou)
     return qs_rls
 
