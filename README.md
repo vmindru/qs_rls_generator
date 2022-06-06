@@ -11,13 +11,13 @@ Generate RLS csv file for QuickSight based on AWS Organizational Units.
 ## Getting Started 
 
 Code can be executed locally or as Lambda. [AWS Credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html) are managed standard way.
-To run the lambda define following ENV_VARS with following DEFAULTS if ENV_VAR is not set. 
+To run the lambda define following `ENV_VARS` with following DEFAULTS if ENV_VAR is not set. 
 
 [Using AWS Lambda environment variables](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html)
 
 
-BUCKET_NAME env var is mandatory. 
-ROOT_OU env var is mandatory. 
+`BUCKET_NAME` env var is mandatory. 
+`ROOT_OU` env var is mandatory. 
 
 ```
 OWNER_TAG = 'cudos_users'
