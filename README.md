@@ -55,3 +55,70 @@ other@company.com,"36370000000,16750000000"
 vmindru@amazon.com,363000000000
 ```
 
+
+
+## Create Lambda
+
+### Create a new Lambda in same region with your QS Dashboards 
+
+1) Create new Lambda
+2) Select Python 3.6
+
+### Configure Lambda
+
+1)  Create and assign new Execution Role LambdaS3Org Role 
+2)  Create and Add 2 Permission Policies to above LambdaS3Org Role
+
+`LambdaOrgS3ListTags`
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "organizations:ListAccounts",
+                "organizations:ListTagsForResource"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+`AWSLambdaS3ExecutionRole`
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::*"
+        },
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::vmindru-cudos-fr/cudos_rls.csv"
+        }
+    ]
+}
+```
+
+### Add ENV Variables 
+
+Go to function settings and add ENV VARS 
+
+`BUCKET_NAME` - Bucket where to upload RLS file 
+`ROOT_OU`  -  ID of your root OU
+
+
+
+
+
+
