@@ -79,8 +79,10 @@ vmindru@amazon.com,363000000000
             "Sid": "VisualEditor0",
             "Effect": "Allow",
             "Action": [
+                "organizations:ListAccountsForParent",
                 "organizations:ListAccounts",
-                "organizations:ListTagsForResource"
+                "organizations:ListTagsForResource",
+                "organizations:ListOrganizationalUnitsForParent"
             ],
             "Resource": "*"
         }
@@ -117,7 +119,7 @@ Go to function settings and add ENV VARS
 `BUCKET_NAME` - Bucket where to upload RLS file 
 `ROOT_OU`  -  ID of your root OU
 
-
+### Increase execution time to 15s 
 
 
 
