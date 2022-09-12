@@ -13,7 +13,23 @@ RLS_HEADER = ['UserName', 'account_id']
 ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
 
 
-org_client = boto3.client('organizations')
+def assume_managment():                
+    management_role_arn = os_environ["MANAGMENTARN"]
+    sts_connection = boto3.client('sts')
+    acct_b = sts_connection.assume_role(
+      RoleArn=management_role_arn,
+      RoleSessionName="cross_acct_lambda"
+    )
+    ACCESS_KEY = acct_b['Credentials']['AccessKeyId']
+    SECRET_KEY = acct_b['Credentials']['SecretAccessKey']
+    SESSION_TOKEN = acct_b['Credentials']['SessionToken']
+    client = boto3.client(
+      "organizations", region_name="us-east-1", #Using the Organizations client to get the data. This MUST be us-east-1 regardless of region you have the Lamda in
+      aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY, aws_session_token=SESSION_TOKEN, )
+    return client
+    
+#org_client = boto3.client('organizations')
+org_client = assume_managment()
 s3_client = boto3.client('s3')
 
 def get_tags(account_list):
@@ -193,7 +209,7 @@ def write_csv(qs_rls):
             wrt.writerow({RLS_HEADER[0]: k, RLS_HEADER[1]: v})
     upload_to_s3(TMP_RLS_FILE, TMP_RLS_FILE)
 
-
+                
 def lambda_handler(event, context):
     main()
 

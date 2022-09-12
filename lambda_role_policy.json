@@ -1,0 +1,48 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "logs:CreateLogGroup",
+            "Resource": "arn:aws:logs:eu-west-1:<Linked_account_id>:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:eu-west-1:<Linked_account_id>:log-group:/aws/lambda/CUDOS_RLS:*"
+            ]
+        },
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "organizations:ListAccountsForParent",
+                "organizations:ListRoots",
+                "organizations:ListAccounts",
+                "organizations:ListTagsForResource",
+                "organizations:ListParents",
+                "organizations:ListOrganizationalUnitsForParent",
+                "organizations:ListChildren"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:ListBucket"
+            ],
+            "Resource": "arn:aws:s3:::<bucket_name>/cudos_rls/cudos_rls.csv"
+        }, 
+        {
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:iam::<org_account_id>:role/<Role-Management-Account>",
+            "Effect": "Allow"
+        }
+    ]
+}

@@ -1,9 +1,8 @@
-"Replace s3://BUCKET with your CUDOS bucket"
 {
     "fileLocations": [
         {
             "URIs": [
-                "s3://your_cudos_bucket/cudos_rls.csv",
+                "s3://<your_cudos_bucket>/cudos_rls.csv",
             ]
         }
     ],
