@@ -316,7 +316,9 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Scheduler
-      Name: Scheduler-For-CUDOS-RLS
+      Name: !Sub
+        - 'Scheduler_ForCUDOSRLS_${Id}'
+        - Id: !Select [0, !Split ['-', !Ref AWS::StackName]]
       ScheduleExpression: !Ref Schedule
       State: ENABLED
       Targets:
