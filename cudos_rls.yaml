@@ -1,0 +1,335 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda to collect Org data and store in S3 
+Parameters:
+  DestinationBucket:
+    Type: String
+    Description: Name of the S3 Bucket that is created to hold org data
+    AllowedPattern: (?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)
+  ManagementAccountRole:
+    Type: String
+    Description:  ARN of the IAM role deployed in the management accounts which can retrieve lambda data.
+  RolePrefix:
+    Type: String
+    Description: This prefix will be placed in front of all roles created. Note you may wish to add a dash at the end to make more readable
+    Default: WA-
+  RootOU:
+    Type: String
+    Description: Id of your organization, Starts with r-
+  Schedule:
+    Type: String
+    Description: Cron job to trigger the lambda using cloudwatch event
+    Default: "rate(14 days)"
+Outputs:
+  LambdaFunctionName:
+    Value:
+      Ref: CUDOSRLS
+  LambdaFunctionARN:
+    Description: Lambda function ARN.
+    Value:
+      Fn::GetAtt:
+        - CUDOSRLS
+        - Arn
+Resources:
+  CUDOSRLS:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub
+        - 'CUDOSRLS_${Id}'
+        - Id: !Select [0, !Split ['-', !Ref AWS::StackName]]
+      Description: LambdaFunction of python3.8.
+      Runtime: python3.9
+      Code:
+        ZipFile: |
+          import boto3
+          import csv
+          from os import environ as os_environ
+          from os.path import basename as file_basename
+          from botocore.exceptions import NoCredentialsError
+          from sys import exit
+
+          OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ else 'cudos_users'
+          BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
+              "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
+          TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
+          RLS_HEADER = ['UserName', 'account_id']
+          ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
+
+
+          def assume_managment():                
+              management_role_arn = os_environ["MANAGMENTARN"]
+              sts_connection = boto3.client('sts')
+              acct_b = sts_connection.assume_role(
+                RoleArn=management_role_arn,
+                RoleSessionName="cross_acct_lambda"
+              )
+              ACCESS_KEY = acct_b['Credentials']['AccessKeyId']
+              SECRET_KEY = acct_b['Credentials']['SecretAccessKey']
+              SESSION_TOKEN = acct_b['Credentials']['SessionToken']
+              client = boto3.client(
+                "organizations", region_name="us-east-1", #Using the Organizations client to get the data. This MUST be us-east-1 regardless of region you have the Lamda in
+                aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY, aws_session_token=SESSION_TOKEN, )
+              return client
+              
+          #org_client = boto3.client('organizations')
+          org_client = assume_managment()
+          s3_client = boto3.client('s3')
+
+          def get_tags(account_list):
+              for index, account  in enumerate(account_list):
+                  account_tags = org_client.list_tags_for_resource(ResourceId=account["Id"])['Tags']
+                  account_tags = {'AccountTags': account_tags}
+                  account.update(account_tags)
+                  account_list[index] = account
+              return account_list
+
+
+          def  print_account_list():
+              account_list = remove_inactive_accoutns(org_client.list_accounts()['Accounts'])
+              account_list = get_tags(account_list)
+              print(account_list)
+
+
+          def add_full_access_users(full_acess_user, cudos_users):
+              full_acess_user = full_acess_user.strip()
+              if full_acess_user in cudos_users:
+                  cudos_users[full_acess_user] = ' '
+              else:
+                  cudos_users.update({full_acess_user: ' '})
+
+
+          def add_cudos_user_to_qs_rls(account, users, qs_rls,separator=":"):
+              """ Default separator """
+              users = users.split(separator)
+              for user in users:
+                  user = user.strip()
+                  if user in qs_rls.keys():
+                    if account not in qs_rls[user]:
+                        qs_rls[user].append(account)
+                  else:
+                    qs_rls.update({user: []})
+                    add_cudos_user_to_qs_rls(account,user, qs_rls)
+              return qs_rls
+
+
+          def get_ou_children(ou):
+              NextToken = True
+              ous_list = []
+              while NextToken:
+                  if NextToken is str:
+                      list_ous_result = org_client.list_organizational_units_for_parent(ParentId=ou, MaxResults=20, NextToken=NextToken)
+                  else:
+                      list_ous_result = org_client.list_organizational_units_for_parent(ParentId=ou, MaxResults=20)
+                  if 'NextToken' in list_ous_result:
+                      NextToken = list_ous_result['NextToken']
+                  else:
+                      NextToken = False
+                      ous = list_ous_result['OrganizationalUnits']
+                      for ou in ous:
+                          ous_list.append(ou['Id'])
+              return ous_list
+
+
+          def get_ou_accounts(ou, accounts_list=None, process_ou_children=True):
+              NextToken = True
+              if accounts_list is None:
+                  accounts_list = []
+              while NextToken:
+                  if NextToken is str:
+                      list_accounts_result = org_client.list_accounts_for_parent(ParentId=ou, MaxResults=20, NextToken=NextToken)
+                  else:
+                      list_accounts_result = org_client.list_accounts_for_parent(ParentId=ou, MaxResults=20)
+                  if 'NextToken' in list_accounts_result:
+                      NextToken = list_accounts_result['NextToken']
+                  else:
+                      NextToken = False
+                  accounts = list_accounts_result['Accounts']
+                  for account in accounts:
+                      if  account['Status'] == 'ACTIVE':
+                          accounts_list.append(account)
+              if process_ou_children:
+                  for ou in get_ou_children(ou):
+                      get_ou_accounts(ou, accounts_list)
+              return accounts_list
+
+
+          def get_cudos_users(account_list):
+              cudos_users = []
+              for account in account_list:
+                  for index, key in enumerate(account['AccountTags']):
+                      if key['Key'] == 'cudos_users':
+                          cudos_users.append((account['Id'], account['AccountTags'][index]['Value']))
+              return cudos_users
+
+
+          def dict_list_to_csv(dict):
+              for key in dict:
+                  dict[key]=','.join(dict[key])
+              return dict
+
+
+          def upload_to_s3(file, s3_file):
+              s3 = boto3.client('s3')
+              try:
+                  s3.upload_file(file, BUCKET_NAME, file_basename(s3_file))
+              except FileNotFoundError:
+                  print("The file was not found")
+                  return None
+              except NoCredentialsError:
+                  print("Credentials not available")
+                  return None
+
+
+          def main(separator=":"):
+              qs_rls = {}
+              root_ou = ROOT_OU
+              qs_rls = process_ou(root_ou, qs_rls, root_ou)
+              qs_rls = process_root_ou(root_ou,qs_rls)
+              print(f"DEBUG: Final result of qs_rls: {qs_rls}")
+              write_csv(qs_rls)
+
+
+          def process_account(account_id, qs_rls, ou):
+              print(f"DEBUG: proessing account level tags, processing account_id: {account_id}")
+              tags = org_client.list_tags_for_resource(ResourceId=account_id)['Tags']
+              for tag in tags:
+                  if tag['Key'] == 'cudos_users':
+                      cudos_users_tag_value = tag['Value']
+                      print(f"DEBUG: processing child account: {account_id} for ou: {ou}")
+                      add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
+              return qs_rls
+
+
+          def process_root_ou(root_ou, qs_rls):
+              tags = org_client.list_tags_for_resource(ResourceId=root_ou)['Tags']
+              for tag in tags:
+                  if tag['Key'] == 'cudos_users':
+                      cudos_users_tag_value = tag['Value']
+                      for user in cudos_users_tag_value.split(':'):
+                          if user in qs_rls.keys():
+                              qs_rls[user] = [' ']
+                          else:
+                              qs_rls.update({user: ' '})
+              return qs_rls
+
+
+          def process_ou(ou, qs_rls, root_ou):
+              print("DEBUG: processing ou {}".format(ou))
+              tags = org_client.list_tags_for_resource(ResourceId=ou)['Tags']
+              for tag in tags:
+                  if tag['Key'] == 'cudos_users':
+                      cudos_users_tag_value = tag['Value']
+                      """ Do not process all children if this is root ou, this is done bellow in separate cycle. """
+                      process_ou_children = bool( ou != root_ou)
+                      for account in get_ou_accounts(ou, process_ou_children=process_ou_children):
+                          account_id = account['Id']
+                          print(f"DEBUG: processing inherit tag: {cudos_users_tag_value} for ou: {ou} account_id: {account_id}")
+                          add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
+
+              children_ou = get_ou_children(ou)
+              if len(children_ou) > 0:
+                  for child_ou in children_ou:
+                      print(f"DEBUG: processing child ou: {child_ou}")
+                      process_ou(child_ou, qs_rls,root_ou)
+
+              ou_accounts = get_ou_accounts(ou, process_ou_children=False)  # Do not process children, only accounts at OU level.
+              ou_accounts_ids = [ ou_account['Id'] for ou_account in ou_accounts]
+              print(f"DEBUG: Getting accounts in  OU: {ou} ########################### ou_accounts:{ou_accounts_ids}")
+              for account in ou_accounts:
+                  account_id = account['Id']
+                  print(f"DEBUG: Processing OU level accounts for ou: {ou}, account: {account_id}")
+                  process_account(account_id, qs_rls, ou)
+              return qs_rls
+
+
+          def write_csv(qs_rls):
+              print(qs_rls)
+              qs_rls_dict_list = dict_list_to_csv(qs_rls)
+              with open(TMP_RLS_FILE,'w',newline='') as cudos_rls_csv_file:
+                  wrt = csv.DictWriter(cudos_rls_csv_file,fieldnames=RLS_HEADER)
+                  wrt.writeheader()
+                  for k,v in qs_rls_dict_list.items():
+                      wrt.writerow({RLS_HEADER[0]: k, RLS_HEADER[1]: v})
+              upload_to_s3(TMP_RLS_FILE, TMP_RLS_FILE)
+
+                          
+          def lambda_handler(event, context):
+              main()
+
+          if __name__ == '__main__':
+              main()
+              
+      Handler: 'index.lambda_handler'
+      MemorySize: 2688
+      Timeout: 600
+      Role: 
+        Fn::GetAtt:
+          - LambdaRole
+          - Arn
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref DestinationBucket
+          MANAGMENTARN: !Ref ManagementAccountRole
+          ROOT_OU: !Ref RootOU
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${RolePrefix}CUDOS-RLS-Role"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+      Path: /
+      Policies:
+        - PolicyName: "Assume-Management-Organization-Data-Role"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "sts:AssumeRole"
+                Resource:
+                  Ref: ManagementAccountRole
+        - PolicyName: "Logs"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/CUDOS-RLS*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:ListBucket"
+                Resource: !Sub "arn:aws:s3:::${DestinationBucket}/*"
+  CloudWatchTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Scheduler
+      Name: Scheduler-For-CUDOS-RLS
+      ScheduleExpression: !Ref Schedule
+      State: ENABLED
+      Targets:
+        - Arn:
+            Fn::GetAtt:
+              - CUDOSRLS
+              - Arn
+          Id: TriggerForCUDOSRLS
+  EventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CUDOSRLS.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !GetAtt CloudWatchTrigger.Arn
