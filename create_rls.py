@@ -1,3 +1,5 @@
+import os
+
 import boto3
 import csv
 from os import environ as os_environ
@@ -11,7 +13,8 @@ BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
 RLS_HEADER = ['UserName', 'account_id']
 ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
-
+ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
+QS_REGION = 'eu-central-1'
 
 def assume_managment():                
     management_role_arn = os_environ["MANAGMENTARN"]
@@ -27,10 +30,13 @@ def assume_managment():
       "organizations", region_name="us-east-1", #Using the Organizations client to get the data. This MUST be us-east-1 regardless of region you have the Lamda in
       aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY, aws_session_token=SESSION_TOKEN, )
     return client
-    
-#org_client = boto3.client('organizations')
-org_client = assume_managment()
+
+if 'ROLE_ARN' not in os.environ:
+    org_client = boto3.client('organizations')
+else:
+    org_client = assume_managment()
 s3_client = boto3.client('s3')
+qs_client = boto3.client('quicksight',region_name=QS_REGION)
 
 def get_tags(account_list):
     for index, account  in enumerate(account_list):
@@ -138,12 +144,47 @@ def upload_to_s3(file, s3_file):
 
 
 def main(separator=":"):
-    qs_rls = {}
+    ou_tag_data = {}
     root_ou = ROOT_OU
-    qs_rls = process_ou(root_ou, qs_rls, root_ou)
-    qs_rls = process_root_ou(root_ou,qs_rls)
-    print(f"DEBUG: Final result of qs_rls: {qs_rls}")
+    ou_tag_data = process_ou(root_ou, ou_tag_data, root_ou)
+    ou_tag_data = process_root_ou(root_ou,ou_tag_data)
+    print(f"OU_TAG_DATA: {ou_tag_data}")
+    qs_users = get_qs_users(ACCOUNT_ID, qs_client)
+    qs_users = {qs_user['UserName']: qs_user['Email'] for qs_user in qs_users}
+    qs_email_user_map = {}
+    for key, value in qs_users.items():
+        if value not in qs_email_user_map:
+            qs_email_user_map[value] = [key]
+        else:
+            qs_email_user_map[value].append(key)
+    qs_rls = {}
+    for entry,entry_value in enumerate(ou_tag_data):
+        if entry in qs_email_user_map:
+            for qs_user in qs_email_user_map[entry]:
+                qs_rls[qs_user] = entry_value
+    print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
+    print("QS RLS DATA: {}".format(qs_rls))
     write_csv(qs_rls)
+
+
+#    write_csv(qs_rls)
+
+def get_qs_users(account_id,qs_client):
+    print("Fetching QS users, Getting first page, NextToken: 0")
+    qs_users_result = (qs_client.list_users(AwsAccountId=account_id, MaxResults=100, Namespace='default'))
+    qs_users = qs_users_result['UserList']
+
+    while 'NextToken' in qs_users_result:
+        NextToken=qs_users_result['NextToken']
+        qs_users_result = (qs_client.list_users(AwsAccountId=account_id, MaxResults=100, Namespace='default', NextToken=NextToken))
+        qs_users.extend(qs_users_result['UserList'])
+        print("Fetching QS users, getting Next Page, NextToken: {}".format(NextToken.split('/')[0]))
+
+    for qs_users_index, qs_user in enumerate(qs_users):
+        qs_user = {'UserName': qs_user['UserName'], 'Email': qs_user['Email']}
+        qs_users[qs_users_index] = qs_user
+
+    return qs_users
 
 
 def process_account(account_id, qs_rls, ou):
