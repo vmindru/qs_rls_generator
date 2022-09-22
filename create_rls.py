@@ -158,10 +158,9 @@ def main(separator=":"):
         else:
             qs_email_user_map[value].append(key)
     qs_rls = {}
-    for entry,entry_value in enumerate(ou_tag_data):
+    for entry in ou_tag_data:
         if entry in qs_email_user_map:
-            for qs_user in qs_email_user_map[entry]:
-                qs_rls[qs_user] = entry_value
+            qs_rls[entry] = ou_tag_data[entry]
     print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
     print("QS RLS DATA: {}".format(qs_rls))
     write_csv(qs_rls)
@@ -241,7 +240,6 @@ def process_ou(ou, qs_rls, root_ou):
 
 
 def write_csv(qs_rls):
-    print(qs_rls)
     qs_rls_dict_list = dict_list_to_csv(qs_rls)
     with open(TMP_RLS_FILE,'w',newline='') as cudos_rls_csv_file:
         wrt = csv.DictWriter(cudos_rls_csv_file,fieldnames=RLS_HEADER)
