@@ -160,7 +160,8 @@ def main(separator=":"):
     qs_rls = {}
     for entry in ou_tag_data:
         if entry in qs_email_user_map:
-            qs_rls[entry] = ou_tag_data[entry]
+            for qs_user in qs_email_user_map[entry]:
+                qs_rls[qs_user] = ou_tag_data[entry]
     print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
     print("QS RLS DATA: {}".format(qs_rls))
     write_csv(qs_rls)
