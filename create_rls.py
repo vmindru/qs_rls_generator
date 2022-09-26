@@ -30,19 +30,13 @@ def assume_management(payer_id):
     return client
     
 
-def get_tags(account_list):
+def get_tags(account_list, org_client):
     for index, account  in enumerate(account_list):
         account_tags = org_client.list_tags_for_resource(ResourceId=account["Id"])['Tags']
         account_tags = {'AccountTags': account_tags}
         account.update(account_tags)
         account_list[index] = account
     return account_list
-
-
-def print_account_list():
-    account_list = remove_inactive_accoutns(org_client.list_accounts()['Accounts'])
-    account_list = get_tags(account_list)
-    print(account_list)
 
 
 def add_full_access_users(full_acess_user, cudos_users):
@@ -67,7 +61,7 @@ def add_cudos_user_to_qs_rls(account, users, qs_rls,separator=":"):
     return qs_rls
 
 
-def get_ou_children(ou):
+def get_ou_children(ou, org_client):
     NextToken = True
     ous_list = []
     while NextToken:
@@ -85,7 +79,7 @@ def get_ou_children(ou):
     return ous_list
 
 
-def get_ou_accounts(ou, accounts_list=None, process_ou_children=True):
+def get_ou_accounts(ou,org_client, accounts_list=None, process_ou_children=True):
     NextToken = True
     if accounts_list is None:
         accounts_list = []
@@ -103,8 +97,8 @@ def get_ou_accounts(ou, accounts_list=None, process_ou_children=True):
             if  account['Status'] == 'ACTIVE':
                 accounts_list.append(account)
     if process_ou_children:
-        for ou in get_ou_children(ou):
-            get_ou_accounts(ou, accounts_list)
+        for ou in get_ou_children(ou, org_client):
+            get_ou_accounts(ou,org_client, accounts_list)
     return accounts_list
 
 
@@ -138,19 +132,19 @@ def upload_to_s3(file, s3_file):
 def main(separator=":"):
     qs_rls = {}
     #root_ou = ROOT_OU
-    MANAGEMENT_ACCOUNT_IDS = environ['MANAGEMENT_ACCOUNT_IDS']
+    MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS']
               
     for payer_id in [r.strip() for r in MANAGEMENT_ACCOUNT_IDS.split(',')]:
-        client = assume_management(payer_id)
-        root_ou = client.list_roots()['Roots'][0]['Id']
-        qs_rls = process_ou(root_ou, qs_rls, root_ou)
-        qs_rls = process_root_ou(root_ou,qs_rls)
+        org_client = assume_management(payer_id)
+        root_ou = org_client.list_roots()['Roots'][0]['Id']
+        qs_rls = process_ou(root_ou, qs_rls, root_ou, org_client)
+        qs_rls = process_root_ou(root_ou,qs_rls, org_client)
         print(f"DEBUG: Final result of qs_rls: {qs_rls}")
         rls_s3_filename = f"cudos_rls_{payer_id}.csv"
         write_csv(qs_rls, rls_s3_filename)
 
 
-def process_account(account_id, qs_rls, ou):
+def process_account(account_id, qs_rls, ou, org_client):
     print(f"DEBUG: proessing account level tags, processing account_id: {account_id}")
     tags = org_client.list_tags_for_resource(ResourceId=account_id)['Tags']
     for tag in tags:
@@ -161,7 +155,7 @@ def process_account(account_id, qs_rls, ou):
     return qs_rls
 
 
-def process_root_ou(root_ou, qs_rls):
+def process_root_ou(root_ou, qs_rls, org_client):
     tags = org_client.list_tags_for_resource(ResourceId=root_ou)['Tags']
     for tag in tags:
         if tag['Key'] == 'cudos_users':
@@ -174,7 +168,7 @@ def process_root_ou(root_ou, qs_rls):
     return qs_rls
 
 
-def process_ou(ou, qs_rls, root_ou):
+def process_ou(ou, qs_rls, root_ou, org_client):
     print("DEBUG: processing ou {}".format(ou))
     tags = org_client.list_tags_for_resource(ResourceId=ou)['Tags']
     for tag in tags:
@@ -182,24 +176,24 @@ def process_ou(ou, qs_rls, root_ou):
             cudos_users_tag_value = tag['Value']
             """ Do not process all children if this is root ou, this is done bellow in separate cycle. """
             process_ou_children = bool( ou != root_ou)
-            for account in get_ou_accounts(ou, process_ou_children=process_ou_children):
+            for account in get_ou_accounts(ou, org_client, process_ou_children=process_ou_children):
                 account_id = account['Id']
                 print(f"DEBUG: processing inherit tag: {cudos_users_tag_value} for ou: {ou} account_id: {account_id}")
                 add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
 
-    children_ou = get_ou_children(ou)
+    children_ou = get_ou_children(ou, org_client)
     if len(children_ou) > 0:
         for child_ou in children_ou:
             print(f"DEBUG: processing child ou: {child_ou}")
-            process_ou(child_ou, qs_rls,root_ou)
+            process_ou(child_ou, qs_rls,root_ou, org_client)
 
-    ou_accounts = get_ou_accounts(ou, process_ou_children=False)  # Do not process children, only accounts at OU level.
+    ou_accounts = get_ou_accounts(ou, org_client, process_ou_children=False)  # Do not process children, only accounts at OU level.
     ou_accounts_ids = [ ou_account['Id'] for ou_account in ou_accounts]
     print(f"DEBUG: Getting accounts in  OU: {ou} ########################### ou_accounts:{ou_accounts_ids}")
     for account in ou_accounts:
         account_id = account['Id']
         print(f"DEBUG: Processing OU level accounts for ou: {ou}, account: {account_id}")
-        process_account(account_id, qs_rls, ou)
+        process_account(account_id, qs_rls, ou, org_client)
     return qs_rls
 
 
