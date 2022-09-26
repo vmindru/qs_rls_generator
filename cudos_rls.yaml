@@ -343,7 +343,7 @@ Resources:
               - Effect: "Allow"
                 Action: "sts:AssumeRole"
                 Resource:
-                  !Sub "arn:aws:iam::${ManagementAccountID}:role/${ManagementAccountRole}"
+                  "*" #!Sub "arn:aws:iam::${ManagementAccountID}:role/${ManagementAccountRole}"
         - PolicyName: "Logs"
           PolicyDocument:
             Version: "2012-10-17"
