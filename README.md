@@ -82,7 +82,8 @@ vmindru@amazon.com,363000000000
                 "organizations:ListAccountsForParent",
                 "organizations:ListAccounts",
                 "organizations:ListTagsForResource",
-                "organizations:ListOrganizationalUnitsForParent"
+                "organizations:ListOrganizationalUnitsForParent", 
+                "quicksight:ListUsers"
             ],
             "Resource": "*"
         }
@@ -106,7 +107,7 @@ vmindru@amazon.com,363000000000
             "Sid": "VisualEditor1",
             "Effect": "Allow",
             "Action": "s3:PutObject",
-            "Resource": "arn:aws:s3:::vmindru-cudos-fr/cudos_rls.csv"
+            "Resource": "arn:aws:s3:::<BUCKET_NAME>/cudos_rls.csv"
         }
     ]
 }

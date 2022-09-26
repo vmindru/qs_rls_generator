@@ -1,3 +1,4 @@
+import os
 import boto3
 import csv
 from os import environ as os_environ
@@ -8,10 +9,11 @@ from sys import exit
 OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ else 'cudos_users'
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
     "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
-TMP_RLS_FILE = '/tmp/cudos_rls.csv'
+TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
 RLS_HEADER = ['UserName', 'account_id']
 #ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
-
+ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
+QS_REGION = os_environ['QS_REGION']
 
 def assume_management(payer_id):                
     role_name = os_environ["MANAGMENTROLENAME"]
@@ -28,7 +30,6 @@ def assume_management(payer_id):
     "organizations", region_name="us-east-1", #Using the Organizations client to get the data. This MUST be us-east-1 regardless of region you have the Lamda in
     aws_access_key_id=ACCESS_KEY, aws_secret_access_key=SECRET_KEY, aws_session_token=SESSION_TOKEN, )
     return client
-    
 
 def get_tags(account_list, org_client):
     for index, account  in enumerate(account_list):
@@ -37,6 +38,12 @@ def get_tags(account_list, org_client):
         account.update(account_tags)
         account_list[index] = account
     return account_list
+
+
+def print_account_list(org_client):
+    account_list = remove_inactive_accoutns(org_client.list_accounts()['Accounts'])
+    account_list = get_tags(account_list, org_client)
+    print(account_list)
 
 
 def add_full_access_users(full_acess_user, cudos_users):
@@ -57,7 +64,7 @@ def add_cudos_user_to_qs_rls(account, users, qs_rls,separator=":"):
                 qs_rls[user].append(account)
             else:
                 qs_rls.update({user: []})
-        add_cudos_user_to_qs_rls(account,user, qs_rls)
+                add_cudos_user_to_qs_rls(account,user, qs_rls)
     return qs_rls
 
 
@@ -79,7 +86,7 @@ def get_ou_children(ou, org_client):
     return ous_list
 
 
-def get_ou_accounts(ou,org_client, accounts_list=None, process_ou_children=True):
+def get_ou_accounts(org_client, ou, accounts_list=None, process_ou_children=True):
     NextToken = True
     if accounts_list is None:
         accounts_list = []
@@ -98,7 +105,7 @@ def get_ou_accounts(ou,org_client, accounts_list=None, process_ou_children=True)
                 accounts_list.append(account)
     if process_ou_children:
         for ou in get_ou_children(ou, org_client):
-            get_ou_accounts(ou,org_client, accounts_list)
+            get_ou_accounts(org_client, ou, accounts_list)
     return accounts_list
 
 
@@ -130,18 +137,56 @@ def upload_to_s3(file, s3_file):
 
 
 def main(separator=":"):
-    qs_rls = {}
-    #root_ou = ROOT_OU
+ 
     MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS']
-              
+
     for payer_id in [r.strip() for r in MANAGEMENT_ACCOUNT_IDS.split(',')]:
         org_client = assume_management(payer_id)
         root_ou = org_client.list_roots()['Roots'][0]['Id']
-        qs_rls = process_ou(root_ou, qs_rls, root_ou, org_client)
-        qs_rls = process_root_ou(root_ou,qs_rls, org_client)
-        print(f"DEBUG: Final result of qs_rls: {qs_rls}")
+
+        qs_client = boto3.client('quicksight',region_name=QS_REGION)
+
+        ou_tag_data = {}
+        ou_tag_data = process_ou(org_client, root_ou, ou_tag_data, root_ou)
+        ou_tag_data = process_root_ou(org_client, root_ou,ou_tag_data)
+        print(f"OU_TAG_DATA: {ou_tag_data}")
+        qs_users = get_qs_users(ACCOUNT_ID, qs_client)
+        qs_users = {qs_user['UserName']: qs_user['Email'] for qs_user in qs_users}
+        qs_email_user_map = {}
+        for key, value in qs_users.items():
+            if value not in qs_email_user_map:
+                qs_email_user_map[value] = [key]
+            else:
+                qs_email_user_map[value].append(key)
+        qs_rls = {}
+        for entry in ou_tag_data:
+            if entry in qs_email_user_map:
+                for qs_user in qs_email_user_map[entry]:
+                    qs_rls[qs_user] = ou_tag_data[entry]
+        print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
+        print("QS RLS DATA: {}".format(qs_rls))
         rls_s3_filename = f"cudos_rls_{payer_id}.csv"
         write_csv(qs_rls, rls_s3_filename)
+
+
+#    write_csv(qs_rls)
+
+def get_qs_users(account_id,qs_client):
+    print("Fetching QS users, Getting first page, NextToken: 0")
+    qs_users_result = (qs_client.list_users(AwsAccountId=account_id, MaxResults=100, Namespace='default'))
+    qs_users = qs_users_result['UserList']
+
+    while 'NextToken' in qs_users_result:
+        NextToken=qs_users_result['NextToken']
+        qs_users_result = (qs_client.list_users(AwsAccountId=account_id, MaxResults=100, Namespace='default', NextToken=NextToken))
+        qs_users.extend(qs_users_result['UserList'])
+        print("Fetching QS users, getting Next Page, NextToken: {}".format(NextToken.split('/')[0]))
+
+    for qs_users_index, qs_user in enumerate(qs_users):
+        qs_user = {'UserName': qs_user['UserName'], 'Email': qs_user['Email']}
+        qs_users[qs_users_index] = qs_user
+
+    return qs_users
 
 
 def process_account(account_id, qs_rls, ou, org_client):
@@ -155,7 +200,7 @@ def process_account(account_id, qs_rls, ou, org_client):
     return qs_rls
 
 
-def process_root_ou(root_ou, qs_rls, org_client):
+def process_root_ou(org_client, root_ou, qs_rls):
     tags = org_client.list_tags_for_resource(ResourceId=root_ou)['Tags']
     for tag in tags:
         if tag['Key'] == 'cudos_users':
@@ -168,7 +213,7 @@ def process_root_ou(root_ou, qs_rls, org_client):
     return qs_rls
 
 
-def process_ou(ou, qs_rls, root_ou, org_client):
+def process_ou(org_client, ou, qs_rls, root_ou):
     print("DEBUG: processing ou {}".format(ou))
     tags = org_client.list_tags_for_resource(ResourceId=ou)['Tags']
     for tag in tags:
@@ -176,7 +221,7 @@ def process_ou(ou, qs_rls, root_ou, org_client):
             cudos_users_tag_value = tag['Value']
             """ Do not process all children if this is root ou, this is done bellow in separate cycle. """
             process_ou_children = bool( ou != root_ou)
-            for account in get_ou_accounts(ou, org_client, process_ou_children=process_ou_children):
+            for account in get_ou_accounts(org_client, ou, process_ou_children=process_ou_children):
                 account_id = account['Id']
                 print(f"DEBUG: processing inherit tag: {cudos_users_tag_value} for ou: {ou} account_id: {account_id}")
                 add_cudos_user_to_qs_rls(account_id, cudos_users_tag_value, qs_rls)
@@ -185,9 +230,9 @@ def process_ou(ou, qs_rls, root_ou, org_client):
     if len(children_ou) > 0:
         for child_ou in children_ou:
             print(f"DEBUG: processing child ou: {child_ou}")
-            process_ou(child_ou, qs_rls,root_ou, org_client)
+            process_ou(org_client,child_ou, qs_rls,root_ou)
 
-    ou_accounts = get_ou_accounts(ou, org_client, process_ou_children=False)  # Do not process children, only accounts at OU level.
+    ou_accounts = get_ou_accounts(org_client, ou, process_ou_children=False)  # Do not process children, only accounts at OU level.
     ou_accounts_ids = [ ou_account['Id'] for ou_account in ou_accounts]
     print(f"DEBUG: Getting accounts in  OU: {ou} ########################### ou_accounts:{ou_accounts_ids}")
     for account in ou_accounts:
@@ -198,7 +243,6 @@ def process_ou(ou, qs_rls, root_ou, org_client):
 
 
 def write_csv(qs_rls, rls_s3_filename):
-    print(qs_rls)
     qs_rls_dict_list = dict_list_to_csv(qs_rls)
     with open(TMP_RLS_FILE,'w',newline='') as cudos_rls_csv_file:
         wrt = csv.DictWriter(cudos_rls_csv_file,fieldnames=RLS_HEADER)

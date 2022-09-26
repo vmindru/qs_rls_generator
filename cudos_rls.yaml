@@ -57,9 +57,9 @@ Resources:
           RLS_HEADER = ['UserName', 'account_id']
           #ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
           ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
-          QS_REGION = 'eu-central-1'
+          QS_REGION = os_environ['QS_REGION']
 
-          def assume_managment(payer_id):                
+          def assume_management(payer_id):                
               role_name = os_environ["MANAGMENTROLENAME"]
               management_role_arn =  f"arn:aws:iam::{payer_id}:role/{role_name}"
               sts_connection = boto3.client('sts')
@@ -181,7 +181,6 @@ Resources:
 
 
           def main(separator=":"):
-
               #if 'ROLE_ARN' not in os.environ:
               #   org_client = boto3.client('organizations')
               #else:
@@ -319,6 +318,7 @@ Resources:
           BUCKET_NAME: !Ref DestinationBucket
           MANAGMENTROLENAME: !Ref ManagementAccountRole
           MANAGEMENT_ACCOUNT_IDS: !Ref ManagementAccountID
+          QS_REGION: !Ref AWS::Region
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -360,6 +360,10 @@ Resources:
                   - "s3:PutObject"
                   - "s3:ListBucket"
                 Resource: !Sub "arn:aws:s3:::${DestinationBucket}/*"
+              - Effect: "Allow"
+                Action:
+                  - "quicksight:ListUsers"
+                Resource: "*"
   CloudWatchTrigger:
     Type: AWS::Events::Rule
     Properties:
