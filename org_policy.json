@@ -11,7 +11,8 @@
                 "organizations:ListTagsForResource",
                 "organizations:ListParents",
                 "organizations:ListOrganizationalUnitsForParent",
-                "organizations:ListChildren"
+                "organizations:ListChildren", 
+                "quicksight:ListUsers"
             ],
             "Resource": "*"
         }
