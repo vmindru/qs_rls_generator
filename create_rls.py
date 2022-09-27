@@ -160,7 +160,10 @@ def main(separator=":"):
         for entry in ou_tag_data:
             if entry in qs_email_user_map:
                 for qs_user in qs_email_user_map[entry]:
-                    qs_rls[qs_user] = ou_tag_data[entry]
+                    if qs_user not in qs_rls:
+                        qs_rls[qs_user] = ou_tag_data[entry]
+                    else:
+                        qs_rls[qs_user] = ou_tag_data[entry.extend(entry)]
         print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
         print("QS RLS DATA: {}".format(qs_rls))
         rls_s3_filename = f"cudos_rls_{payer_id}.csv"
