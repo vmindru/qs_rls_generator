@@ -124,15 +124,13 @@ def dict_list_to_csv(dict):
 
 
 def upload_to_s3(file, s3_file):
-    s3 = boto3.client('s3')
     try:
-        s3.upload_file(file, BUCKET_NAME, file_basename(s3_file))
-    except FileNotFoundError:
-        print("The file was not found")
-        return None
-    except NoCredentialsError:
-        print("Credentials not available")
-        return None
+        s3 = boto3.client('s3', os_environ["QS_REGION"],config=Config(s3={'addressing_style': 'path'}))
+        s3.upload_file(file, BUCKET_NAME, f"cid_rls/{s3_file}") 
+        print(f"{s3_file} data in s3")
+        
+    except Exception as e:
+        print(e)
 
 
 def main(separator=":"):
