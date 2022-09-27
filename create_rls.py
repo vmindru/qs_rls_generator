@@ -5,6 +5,8 @@ from os import environ as os_environ
 from os.path import basename as file_basename
 from botocore.exceptions import NoCredentialsError
 from sys import exit
+from botocore.exceptions import ClientError
+from botocore.client import Config
 
 OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ else 'cudos_users'
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
@@ -13,10 +15,6 @@ TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '
 RLS_HEADER = ['UserName', 'account_id']
 ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION']
-MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else ACCOUNT_ID
-
-
-
 
 def assume_management(payer_id):                
     role_name = os_environ["MANAGMENTROLENAME"]
@@ -128,18 +126,18 @@ def dict_list_to_csv(dict):
 
 
 def upload_to_s3(file, s3_file):
-    s3 = boto3.client('s3')
     try:
-        s3.upload_file(file, BUCKET_NAME, file_basename(s3_file))
-    except FileNotFoundError:
-        print("The file was not found")
-        return None
-    except NoCredentialsError:
-        print("Credentials not available")
-        return None
+        s3 = boto3.client('s3', os_environ["QS_REGION"],config=Config(s3={'addressing_style': 'path'}))
+        s3.upload_file(file, BUCKET_NAME, f"cid_rls/{s3_file}") 
+        print(f"{s3_file} data in s3")
+        
+    except Exception as e:
+        print(e)
 
 
 def main(separator=":"):
+ 
+    MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else ACCOUNT_ID
     for payer_id in [r.strip() for r in MANAGEMENT_ACCOUNT_IDS.split(',')]:
         org_client = assume_management(payer_id)
         root_ou = org_client.list_roots()['Roots'][0]['Id']
@@ -172,6 +170,7 @@ def main(separator=":"):
         write_csv(qs_rls, rls_s3_filename)
 
 
+#    write_csv(qs_rls)
 
 def get_qs_users(account_id,qs_client):
     print("Fetching QS users, Getting first page, NextToken: 0")
