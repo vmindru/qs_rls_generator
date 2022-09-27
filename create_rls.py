@@ -11,7 +11,6 @@ BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit
     "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
 RLS_HEADER = ['UserName', 'account_id']
-#ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
 ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION']
 
@@ -138,8 +137,7 @@ def upload_to_s3(file, s3_file):
 
 def main(separator=":"):
  
-    MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS']
-
+    MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else ACCOUNT_ID
     for payer_id in [r.strip() for r in MANAGEMENT_ACCOUNT_IDS.split(',')]:
         org_client = assume_management(payer_id)
         root_ou = org_client.list_roots()['Roots'][0]['Id']
