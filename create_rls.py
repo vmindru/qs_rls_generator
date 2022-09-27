@@ -5,6 +5,8 @@ from os import environ as os_environ
 from os.path import basename as file_basename
 from botocore.exceptions import NoCredentialsError
 from sys import exit
+from botocore.exceptions import ClientError
+from botocore.client import Config
 
 OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ else 'cudos_users'
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
