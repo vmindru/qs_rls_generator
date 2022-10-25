@@ -4,7 +4,6 @@
 Generate RLS csv file for QuickSight based on AWS Organizational Units.
 
 [About QuickSight RLS](https://docs.aws.amazon.com/quicksight/latest/user/restrict-access-to-a-data-set-using-row-level-security.html)
-
 [About AWS Organizational Unit ](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html)
 
 
@@ -16,14 +15,14 @@ To run the lambda define following `ENV_VARS` with following DEFAULTS if ENV_VAR
 [Using AWS Lambda environment variables](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html)
 
 
-`BUCKET_NAME` env var is mandatory. 
-`ROOT_OU` env var is mandatory. 
-
+List of Variables to preconfigure 
 ```
 OWNER_TAG = 'cudos_users'
-BUCKET_NAME = 'NO DEFAULT'
+BUCKET_NAME = 'NO DEFAULT' # Bucket where to upload the code
+QS_REGION = 'QS region'
+export MANAGEMENT_ACCOUNT_IDS='coma seaprated value of account_ids'
+export MANAGMENTROLENAME=WA-Lambda-Assume-Role-Management-Account  #  Role to Assume in every payer/management account
 TMP_RLS_FILE = '/tmp/cudos_rls.csv'
-ROOT_OU = os_environ['ROOT_OU'] if 'ROOT_OU' in os_environ else exit("Missing ROOT_OU env var, please define ROOT_OU in ENV vars")
 ```
 ## Defining TAGS
 
@@ -39,20 +38,19 @@ Output is writen to `TMP_RLS_FILE` location and uploaded to `BUCKET_NAME`.
 
 ## Example Output 
 
-Note first 3 entry are giving full access to vmindru@megacorp, vmindru_has_it_all, and Admin/vmindru-Isengard.
 
 ```
-UserName,account_id
-vmindru@megacorp.corp,
-vmindru_has_it_all, 
-Admin/vmindru-Isengard, 
-cross_ou_user,"0140000000,7200000,74700000,853000000"
-foo_inherit,74700000000
-student1,"853000000,126000000"
-student2,"853678200000,126600000"
-other@company_foo.com,"363700000,1675000000"
-other@company.com,"36370000000,16750000000"
-vmindru@amazon.com,363000000000
+UserName,account_id,payer_id
+vmindru@megacorp.corp,,
+vmindru_has_it_all,,
+Admin/vmindru-Isengard,,
+cross_ou_user,"0140000000,7200000,74700000,853000000",
+foo_inherit,74700000000,
+student1,"853000000,126000000",
+student2,"853678200000,126600000",
+other@company_foo.com,"363700000,1675000000",
+other@company.com,"36370000000,16750000000",
+vmindru@amazon.com,363000000000,
 ```
 
 
@@ -62,7 +60,7 @@ vmindru@amazon.com,363000000000
 ### Create a new Lambda in same region with your QS Dashboards 
 
 1) Create new Lambda
-2) Select Python 3.6
+2) Select Python 3.8
 
 ### Configure Lambda
 
