@@ -9,7 +9,7 @@ OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ els
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
     "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
-RLS_HEADER = ['UserName', 'account_id']
+RLS_HEADER = ['UserName', 'account_id', 'payer_id']
 QS_ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION']
 MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else QS_ACCOUNT_ID
@@ -44,20 +44,6 @@ def get_tags(account_list, org_client):
     return account_list
 
 
-# def print_account_list(org_client):
-#     account_list = remove_inactive_accoutns(org_client.list_accounts()['Accounts'])
-#     account_list = get_tags(account_list, org_client)
-#     print(account_list)
-
-
-def add_full_access_users(full_acess_user, cudos_users):
-    full_acess_user = full_acess_user.strip()
-    if full_acess_user in cudos_users:
-        cudos_users[full_acess_user] = ' '
-    else:
-        cudos_users.update({full_acess_user: ' '})
-
-
 def update_tag_data(account, users, ou_tag_data, separator=":"):
     """ Default separator """
     users = users.split(separator)
@@ -65,9 +51,9 @@ def update_tag_data(account, users, ou_tag_data, separator=":"):
         user = user.strip()
         if user in ou_tag_data:
             if account not in ou_tag_data[user]:
-                ou_tag_data[user].append(account)
+                ou_tag_data[user]['account_id'].append(account)
         else:
-            ou_tag_data[user] = [account]
+            ou_tag_data.update({user: {'account_id': [account]}})
     return ou_tag_data
 
 
@@ -163,10 +149,10 @@ def main(separator=":"):
             else:
                 qs_email_user_map[value].append(key)
         # process all tags from alll OU
-        for entry in ou_tag_data:
-            if entry in qs_email_user_map:
-                for qs_user in qs_email_user_map[entry]:
-                    qs_rls[qs_user] = ou_tag_data[entry]
+        for user in ou_tag_data:
+            if user in qs_email_user_map:
+                for qs_user in qs_email_user_map[user]:
+                    qs_rls[qs_user] = ou_tag_data[user]
     print("QS EMAIL USER MAPPING: {}".format(qs_email_user_map))
     print("QS RLS DATA: {}".format(qs_rls))
     rls_s3_filename = "cudos_rls.csv"
@@ -209,8 +195,14 @@ def process_root_ou(org_client, payer_id, root_ou, ou_tag_data):
         if tag['Key'] == 'cudos_users':
             cudos_users_tag_value = tag['Value']
             for user in cudos_users_tag_value.split(':'):
-                ou_tag_data[user] = [' ']
-
+                if user in ou_tag_data:
+                    if 'payer_id' in ou_tag_data[user]:
+                        if payer_id not in ou_tag_data[user]['payer_id']:
+                            ou_tag_data[user]['payer_id'].append(payer_id)
+                    else:
+                        ou_tag_data[user]['payer_id'] = [payer_id]
+                else:
+                    ou_tag_data.udpate({user: {'payer_id': [payer_id]}})
     return ou_tag_data
 
 
@@ -244,12 +236,21 @@ def process_ou(org_client, ou, ou_tag_data, root_ou):
 
 
 def write_csv(qs_rls, rls_s3_filename):
-    qs_rls_dict_list = dict_list_to_csv(qs_rls)
     with open(TMP_RLS_FILE, 'w', newline='') as cudos_rls_csv_file:
         wrt = csv.DictWriter(cudos_rls_csv_file, fieldnames=RLS_HEADER)
         wrt.writeheader()
-        for k, v in qs_rls_dict_list.items():
-            wrt.writerow({RLS_HEADER[0]: k, RLS_HEADER[1]: v})
+        for user in qs_rls:
+            """ we will write empty account_id, if payer_id is present, cause the user should see all accounts under one payer
+                and we will write empty payer_id if payer_id is absent """
+            if 'payer_id' in qs_rls[user]:
+                wrt.writerow({'UserName': user,
+                              'account_id': "",
+                              'payer_id': ",".join(qs_rls[user]['payer_id'])})
+            else:
+                wrt.writerow({'UserName': user,
+                              'account_id': ",".join(qs_rls[user]['account_id']),
+                              'payer_id': ""})
+
     upload_to_s3(TMP_RLS_FILE, rls_s3_filename)
 
 
