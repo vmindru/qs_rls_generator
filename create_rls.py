@@ -9,7 +9,7 @@ OWNER_TAG = os_environ['CUDOS_OWNER_TAG'] if 'CUDOS_OWNER_TAG' in os_environ els
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
     "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
-RLS_HEADER = ['UserName', 'account_id', 'payer_id']
+RLS_HEADER = ['UserName', 'account_id', 'payer_account_id']
 QS_ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION']
 MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else QS_ACCOUNT_ID
@@ -245,11 +245,11 @@ def write_csv(qs_rls, rls_s3_filename):
             if 'payer_id' in qs_rls[user]:
                 wrt.writerow({'UserName': user,
                               'account_id': "",
-                              'payer_id': ",".join(qs_rls[user]['payer_id'])})
+                              'payer_account_id': ",".join(qs_rls[user]['payer_id'])})
             else:
                 wrt.writerow({'UserName': user,
                               'account_id': ",".join(qs_rls[user]['account_id']),
-                              'payer_id': ""})
+                              'payer_account_id': ""})
 
     upload_to_s3(TMP_RLS_FILE, rls_s3_filename)
 
