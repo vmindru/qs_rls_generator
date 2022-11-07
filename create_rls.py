@@ -13,7 +13,7 @@ RLS_HEADER = ['UserName', 'account_id', 'payer_account_id']
 QS_ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION']
 MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else QS_ACCOUNT_ID
-MANAGMENTROLENAME = os_environ['MANAGEMENTROLENAME'] if 'MANAGEMENTROLENAME' in os_environ else exit(
+MANAGMENTROLENAME = os_environ['MANAGMENTROLENAME'] if 'MANAGMENTROLENAME' in os_environ else exit(
     "Missing MANAGEMENT ROLE NAME. Please define bucket as ENV VAR MANAGMENTROLENAME")
 
 
