@@ -20,7 +20,7 @@ List of Variables to preconfigure
 OWNER_TAG = 'cid_users'
 BUCKET_NAME = 'NO DEFAULT' # Bucket where to upload the code
 QS_REGION = 'QS region'
-export MANAGEMENT_ACCOUNT_IDS='coma seaprated value of account_ids'
+export MANAGEMENT_ACCOUNT_IDS='coma seaprated value of account_ids, format ACC_ID:REGION'
 export MANAGMENTROLENAME=WA-Lambda-Assume-Role-Management-Account  #  Role to Assume in every payer/management account
 TMP_RLS_FILE = '/tmp/cid_rls.csv'
 ```

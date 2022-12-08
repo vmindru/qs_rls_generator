@@ -254,19 +254,6 @@ def write_csv(qs_rls, rls_s3_filename):
     upload_to_s3(TMP_RLS_FILE, rls_s3_filename)
 
 
-def create_athena_rls_table(qs_rls):
-    rows = []
-    for user in qs_rls:
-        """ we will write empty account_id, if payer_id is present, cause the user should see all accounts under one payer
-            and we will write empty payer_id if payer_id is absent """
-        if 'payer_id' in qs_rls[user]:
-            payer_ids = ",".join(qs_rls[user]['payer_id'])
-            rows.append(f"\'{user}\',\'\',\'{payer_ids}\'")
-        else:
-            account_ids = ",".join(qs_rls[user]['account_id'])
-            rows.append(f"\'{user}\',\'{account_ids}\',\'\'")
-
-
 def lambda_handler(event, context):
     main()
 
