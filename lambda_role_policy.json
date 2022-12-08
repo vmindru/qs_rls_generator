@@ -13,7 +13,7 @@
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:eu-west-1:<Linked_account_id>:log-group:/aws/lambda/CUDOS_RLS:*"
+                "arn:aws:logs:eu-west-1:<Linked_account_id>:log-group:/aws/lambda/CID_RLS:*"
             ]
         },
         {
@@ -37,7 +37,7 @@
                 "s3:PutObject",
                 "s3:ListBucket"
             ],
-            "Resource": "arn:aws:s3:::<bucket_name>/cudos_rls/cudos_rls.csv"
+            "Resource": "arn:aws:s3:::<bucket_name>/cid_rls/cid_rls.csv"
         }, 
         {
             "Action": "sts:AssumeRole",
