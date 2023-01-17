@@ -2,7 +2,7 @@
     "fileLocations": [
         {
             "URIs": [
-                "s3://<your_cudos_bucket>/cudos_rls.csv",
+                "s3://<your_cid_bucket>/cid_rls.csv",
             ]
         }
     ],

@@ -17,12 +17,12 @@ To run the lambda define following `ENV_VARS` with following DEFAULTS if ENV_VAR
 
 List of Variables to preconfigure 
 ```
-OWNER_TAG = 'cudos_users'
+OWNER_TAG = 'cid_users'
 BUCKET_NAME = 'NO DEFAULT' # Bucket where to upload the code
 QS_REGION = 'QS region'
-export MANAGEMENT_ACCOUNT_IDS='coma seaprated value of account_ids'
+export MANAGEMENT_ACCOUNT_IDS='coma seaprated value of account_ids, format ACC_ID:REGION'
 export MANAGMENTROLENAME=WA-Lambda-Assume-Role-Management-Account  #  Role to Assume in every payer/management account
-TMP_RLS_FILE = '/tmp/cudos_rls.csv'
+TMP_RLS_FILE = '/tmp/cid_rls.csv'
 ```
 ## Defining TAGS
 
@@ -104,7 +104,7 @@ vmindru@amazon.com,363000000000,
             "Sid": "VisualEditor1",
             "Effect": "Allow",
             "Action": "s3:PutObject",
-            "Resource": "arn:aws:s3:::vmindru-cudos-fr/cudos_rls.csv"
+            "Resource": "arn:aws:s3:::vmindru-cid-fr/cid_rls.csv"
         }
     ]
 }
