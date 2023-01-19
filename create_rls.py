@@ -60,8 +60,11 @@ def update_tag_data(account, users, ou_tag_data, separator=":"):
 def get_ou_children(ou, org_client):
     NextToken = True
     ous_list = []
+    # If ou == "ou-hg33-xsxtc4gg":
+    #     import pdb
+    #     pdb.set_trace()
     while NextToken:
-        if NextToken is str:
+        if type(NextToken) is str:
             list_ous_result = org_client.list_organizational_units_for_parent(ParentId=ou, MaxResults=20, NextToken=NextToken)
         else:
             list_ous_result = org_client.list_organizational_units_for_parent(ParentId=ou, MaxResults=20)
