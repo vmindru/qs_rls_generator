@@ -11,14 +11,14 @@ BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cudos_rls.csv'
 RLS_HEADER = ['UserName', 'account_id', 'payer_account_id']
 QS_ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
-QS_REGION = os_environ['QS_REGION']
+QS_REGION = os_environ['QS_REGION'] if 'QS_REGION' in os_environ else exit("Missing QS_REGION var name, please define")
 MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else QS_ACCOUNT_ID
-MANAGMENTROLENAME = os_environ['MANAGMENTROLENAME'] if 'MANAGMENTROLENAME' in os_environ else exit(
-    "Missing MANAGEMENT ROLE NAME. Please define bucket as ENV VAR MANAGMENTROLENAME")
+MANAGEMENTROLENAME = os_environ['MANAGEMENTROLENAME'] if 'MANAGEMENTROLENAME' in os_environ else exit(
+    "Missing MANAGEMENT ROLE NAME. Please define bucket as ENV VAR MANAGEMENTROLENAME")
 
 
 def assume_management(payer_id, region):
-    role_name = os_environ["MANAGMENTROLENAME"]
+    role_name = os_environ["MANAGEMENTROLENAME"]
     management_role_arn = f"arn:aws:iam::{payer_id}:role/{role_name}"
     sts_connection = boto3.client('sts')
     acct_b = sts_connection.assume_role(
@@ -60,9 +60,6 @@ def update_tag_data(account, users, ou_tag_data, separator=":"):
 def get_ou_children(ou, org_client):
     NextToken = True
     ous_list = []
-    # If ou == "ou-hg33-xsxtc4gg":
-    #     import pdb
-    #     pdb.set_trace()
     while NextToken:
         if type(NextToken) is str:
             list_ous_result = org_client.list_organizational_units_for_parent(ParentId=ou, MaxResults=20, NextToken=NextToken)
@@ -83,7 +80,7 @@ def get_ou_accounts(org_client, ou, accounts_list=None, process_ou_children=True
     if accounts_list is None:
         accounts_list = []
     while NextToken:
-        if NextToken is str:
+        if type(NextToken) is str:
             list_accounts_result = org_client.list_accounts_for_parent(ParentId=ou, MaxResults=20, NextToken=NextToken)
         else:
             list_accounts_result = org_client.list_accounts_for_parent(ParentId=ou, MaxResults=20)
