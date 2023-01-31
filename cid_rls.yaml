@@ -45,10 +45,33 @@ Parameters:
         - aws-well-architected-labs-canada
         - aws-well-architected-labs-milan
         - aws-well-architected-labs-paris
+        - vmindrutest
   CodeKey:
     Type: String
     Description: file name of ZipFile with data code
     Default: Cost/Labs/row-level-security/create_rls.zip # RLS Folder to be updated, once the LAB will be created
+  QuickSightRegion:
+    Type: String
+    Description: QuickSight region
+    Default:  "us-east-1"
+    AllowedValues:
+     - "eu-west-1"
+     - "us-east-2"
+     - "us-east-1"
+     - "us-west-1"
+     - "us-west-2"
+     - "ap-southeast-1"
+     - "eu-central-1"
+     - "eu-west-2"
+     - "eu-north-1"
+     - "ap-southeast-2"
+     - "ap-south-1"
+     - "ap-northeast-3"
+     - "ap-northeast-2"
+     - "ap-northeast-1"
+     - "ca-central-1"
+     - "eu-west-3"
+     - "sa-east-1"
 Outputs:
   LambdaFunctionName:
     Value:
@@ -81,9 +104,10 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref DestinationBucket
-          MANAGMENTROLENAME: !Ref ManagementAccountRole
+          MANAGEMENTROLENAME: !Ref ManagementAccountRole
           MANAGEMENT_ACCOUNT_IDS: !Ref ManagementAccountID
-          QS_REGION: !Ref AWS::Region
+          QS_REGION: !Ref QuickSightRegion
+
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:

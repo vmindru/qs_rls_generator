@@ -13,12 +13,12 @@ RLS_HEADER = ['UserName', 'account_id', 'payer_account_id']
 QS_ACCOUNT_ID = boto3.client('sts').get_caller_identity().get('Account')
 QS_REGION = os_environ['QS_REGION'] if 'QS_REGION' in os_environ else exit("Missing QS_REGION var name, please define")
 MANAGEMENT_ACCOUNT_IDS = os_environ['MANAGEMENT_ACCOUNT_IDS'] if 'MANAGEMENT_ACCOUNT_IDS' in os_environ else QS_ACCOUNT_ID
-MANAGEMENTROLENAME = os_environ['MANAGEMENTROLENAME'] if 'MANAGEMENTROLENAME' in os_environ else exit(
+MANAGMENTROLENAME = os_environ['MANAGMENTROLENAME'] if 'MANAGMENTROLENAME' in os_environ else exit(
     "Missing MANAGEMENT ROLE NAME. Please define bucket as ENV VAR MANAGEMENTROLENAME")
 
 
 def assume_management(payer_id, region):
-    role_name = os_environ["MANAGEMENTROLENAME"]
+    role_name = os_environ["MANAGMENTROLENAME"]
     management_role_arn = f"arn:aws:iam::{payer_id}:role/{role_name}"
     sts_connection = boto3.client('sts')
     acct_b = sts_connection.assume_role(
