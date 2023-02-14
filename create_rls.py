@@ -5,7 +5,7 @@ from os import environ as os_environ
 from sys import exit
 from botocore.client import Config
 
-OWNER_TAG = os_environ['CID_OWNER_TAG'] if 'CID_OWNER_TAG' in os_environ else 'cid_users'
+CID_OWNER_TAG = os_environ['CID_OWNER_TAG'] if 'CID_OWNER_TAG' in os_environ else 'cid_users'
 BUCKET_NAME = os_environ['BUCKET_NAME'] if 'BUCKET_NAME' in os_environ else exit(
     "Missing bucket for uploading CSV. Please define bucket as ENV VAR BUCKET_NAME")
 TMP_RLS_FILE = os_environ['TMP_RLS_FILE'] if 'TMP_RLS_FILE' in os_environ else '/tmp/cid_rls.csv'
@@ -210,7 +210,7 @@ def process_ou(org_client, ou, ou_tag_data, root_ou):
     print("DEBUG: processing ou {}".format(ou))
     tags = org_client.list_tags_for_resource(ResourceId=ou)['Tags']
     for tag in tags:
-        if tag['Key'] == 'cid_users':
+        if tag['Key'] == CID_OWNER_TAG:
             cid_users_tag_value = tag['Value']
             """ Do not process all children if this is root ou, this is done bellow in separate cycle. """
             process_ou_children = bool(ou != root_ou)
